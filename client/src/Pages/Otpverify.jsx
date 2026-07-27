@@ -98,8 +98,16 @@ const OtpVerify = () => {
 
 
       alert("OTP Verified Successfully!");
+     
+      console.log("FULL RESPONSE:", data);
 
       localStorage.removeItem("otpTime");
+      console.log("data.username",data.username);
+      localStorage.setItem("username", data.username);
+localStorage.setItem("userEmail", data.email);
+localStorage.setItem("isLoggedIn", "true");
+
+
 
       navigate("/")
 

@@ -181,7 +181,8 @@ app.post("/verify-otp",async (req,res)=>{
     if(user.OTP==req.body.otp && user.OTPexpiry>Date.now()){
       user.isVerified=true;
       await user.save();
-      return res.status(200).json({message:"OTP verified successfully!"});
+      return res.status(200).json({message:"OTP verified successfully!",email:user.email,
+  username:user.username});
     }
     return res.status(401).json({message:"Invalid OTP or OTP expired!"});
   } catch(err){
