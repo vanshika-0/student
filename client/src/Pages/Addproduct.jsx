@@ -58,7 +58,11 @@ const Addproduct = () => {
 
       const photoBase64 = await toBase64(file);
 
+<<<<<<< HEAD
       const response = await  fetch(`${API_URL}/analyze-image`, {
+=======
+      const response = await fetch(`${API_URL}/analyze-image`, {
+>>>>>>> 58bd8142ba3eb4f25145c2c59c6af4b7ef54604e
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photoBase64 }),
@@ -181,7 +185,11 @@ const Addproduct = () => {
         photoBase64 = await toBase64(product.photos[0]);
       }
 
+<<<<<<< HEAD
       const response = await  fetch(`${API_URL}/predict-price`, {
+=======
+      const response = await fetch(`${API_URL}/predict-price`, {
+>>>>>>> 58bd8142ba3eb4f25145c2c59c6af4b7ef54604e
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
