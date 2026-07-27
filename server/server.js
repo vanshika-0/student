@@ -1,60 +1,56 @@
-// Force Google DNS
-// const dns = require('dns');
-// dns.setServers(['8.8.8.8', '8.8.4.4']);
-
 require("dotenv").config();
-// ... baaki code same
 
 console.log("API KEY:", process.env.GEMINI_API_KEY);
 
-
 const express = require("express");
 const mongoose = require("mongoose");
-
-
-
-
-
 const cors = require("cors");
 
 // step--2  api gen
-
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const genAI = new GoogleGenerativeAI(
-  process.env.GEMINI_API_KEY
-);
+// ✅ Resend — HTTP-based email service, replaces Nodemailer (Gmail SMTP was timing out on Render)
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-
-
-
-
-
+// ✅ Common email helper — sirf ek jagah se sab emails jaate hain ab
+async function sendEmail({ to, subject, html, text }) {
+  try {
+    const result = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+      to,
+      subject,
+      html,
+      text,
+    });
+    console.log("✅ Email sent:", result?.data?.id || result);
+    return result;
+  } catch (err) {
+    console.error("❌ Email send error:", err);
+    // email fail hone par bhi poora route crash na ho, isliye yahan throw nahi kar rahe
+  }
+}
 
 const Products = require("./models/Products");
-const User = require("./models/User"); 
+const User = require("./models/User");
 const Cart = require("./models/Cart");
 const Order = require("./models/Order");
 
-
 const app = express();
 app.use("/uploads", express.static("uploads"));
-
-
-
 
 // middleware
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 30000, // 30 sec tak try karega connect hone ke lie
-})
+mongoose
+  .connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 30000, // 30 sec tak try karega connect hone ke lie
+  })
   .then(() => console.log("MongoDB connected ✅"))
-  .catch(err => console.log("MongoDB connection error ❌:", err));
-
-  
+  .catch((err) => console.log("MongoDB connection error ❌:", err));
 
 console.log("MONGO URI:", process.env.MONGO_URI);
 
@@ -63,21 +59,17 @@ app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
 });
 
-
 //product add krne ke lie mongo mai ---file ke name k sath
 const multer = require("multer");
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "uploads/");
   },
-
   filename: (req, file, cb) => {
     cb(null, Date.now() + "-" + file.originalname);
   },
 });
 const upload = multer({ storage });
-
-
 
 app.post("/add-product", upload.array("photos", 3), async (req, res) => {
   try {
@@ -104,7 +96,6 @@ app.post("/add-product", upload.array("photos", 3), async (req, res) => {
     console.log("product seller", product.seller);
     await product.save();
     res.json({ success: true });
-
   } catch (err) {
     console.error("ADD PRODUCT ERROR:", err.message); // ✅ error dikhega
     res.status(500).json({ message: err.message });
@@ -112,124 +103,96 @@ app.post("/add-product", upload.array("photos", 3), async (req, res) => {
 });
 
 //2
-const nodemailer=require('nodemailer');
-app.post("/sign-up", async (req,res)=>{
-  try{
+app.post("/sign-up", async (req, res) => {
+  try {
+    const OTP = Math.floor(100000 + Math.random() * 900000).toString(); //6 digit ka random number generate krne ke lie
+    const OTPexpiry = new Date(Date.now() + 1 * 60 * 1000); //OTP 1 min k lie valid rhega
 
-  const OTP=Math.floor(100000 + Math.random()*900000).toString();  //6 digit ka random number generate krne ke lie
-  const OTPexpiry=new Date(Date.now()+1*60*1000);  //OTP 1 min k lie valid rhega
-  
+    const allowedDomains = ["srmist.edu.in"];
 
-  const allowedDomains=[
- "srmist.edu.in"
-];
+    const email = req.body.email;
 
+    const studentEmailPattern = /(\.edu|\.ac\.in|\.edu\.in)$/;
 
-const email = req.body.email;
+    const domain = email.split("@")[1];
 
-const studentEmailPattern = /(\.edu|\.ac\.in|\.edu\.in)$/;
-
-const domain = email.split("@")[1];
-
-
-if(!studentEmailPattern.test(domain)){
-
-  return res.status(400).json({
-    message:"Please use your official college email ID"
-  });
-
-}
-
-  const newUser = new User({...req.body,OTP,OTPexpiry,isVerified:false});
-
-
-  //..ye sspread operator hai
-  //save krne k bd jo object create hua tha--- ab new document create hgai collection mai same data ke sath
-  await newUser.save();
-  
- const transporter=nodemailer.createTransport({
-  service:"gmail",
-  auth:{
-    user:process.env.email,
-    pass:process.env.pass
-  }
- })
- transporter.sendMail({
-  from:process.env.email,
-  to:newUser.email,
-  subject:"OTP for email verification",
-  text:`Your OTP is ${OTP}. It is valid for 1 minute.`
- })
-
-   res.status(201).json({
-    message: "User created"
-  });
-
-} catch (err) {
-
-  console.log(err);
-
-  res.status(500).json({
-    message: err.message
-  });
-}});
-
-
-app.post("/verify-otp",async (req,res)=>{
-
-  try{
-    const user=await User.findOne({email:req.body.email});
-    console.log(user.OTP,req.body.otp);
-    if(user.OTP==req.body.otp && user.OTPexpiry>Date.now()){
-      user.isVerified=true;
-      await user.save();
-      return res.status(200).json({message:"OTP verified successfully!",email:user.email,
-  username:user.username});
+    if (!studentEmailPattern.test(domain)) {
+      return res.status(400).json({
+        message: "Please use your official college email ID",
+      });
     }
-    return res.status(401).json({message:"Invalid OTP or OTP expired!"});
-  } catch(err){
+
+    const newUser = new User({ ...req.body, OTP, OTPexpiry, isVerified: false });
+
+    //..ye sspread operator hai
+    //save krne k bd jo object create hua tha--- ab new document create hgai collection mai same data ke sath
+    await newUser.save();
+
+    await sendEmail({
+      to: newUser.email,
+      subject: "OTP for email verification",
+      text: `Your OTP is ${OTP}. It is valid for 1 minute.`,
+    });
+
+    res.status(201).json({
+      message: "User created",
+    });
+  } catch (err) {
     console.log(err);
-    return res.status(500).json({message:"Server error while verifying OTP!"});
+
+    res.status(500).json({
+      message: err.message,
+    });
   }
+});
+
+app.post("/verify-otp", async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.body.email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found!" });
+    }
+
+    console.log(user.OTP, req.body.otp);
+    if (user.OTP == req.body.otp && user.OTPexpiry > Date.now()) {
+      user.isVerified = true;
+      await user.save();
+      return res.status(200).json({
+        message: "OTP verified successfully!",
+        email: user.email,
+        username: user.username,
+      });
+    }
+    return res.status(401).json({ message: "Invalid OTP or OTP expired!" });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: "Server error while verifying OTP!" });
   }
-)
+});
 
 app.post("/resend-otp", async (req, res) => {
   try {
     const user = await User.findOne({
-      email: req.body.email
+      email: req.body.email,
     });
 
     if (!user) {
       return res.status(404).json({
-        message: "User not found"
+        message: "User not found",
       });
     }
 
-    const otp = Math.floor(
-      100000 + Math.random() * 900000
-    ).toString();
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const otpExpiry = new Date(
-      Date.now() + 2 * 60 * 1000
-    );
+    const otpExpiry = new Date(Date.now() + 2 * 60 * 1000);
 
     user.OTP = otp;
     user.OTPexpiry = otpExpiry;
 
     await user.save();
 
-    const transporter =
-      nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.email,
-          pass: process.env.pass,
-        },
-      });
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: req.body.email,
       subject: "OTP for Email Verification",
       text: `Your OTP is ${otp}. It is valid for 2 minutes.`,
@@ -242,96 +205,64 @@ app.post("/resend-otp", async (req, res) => {
     console.log(err);
 
     return res.status(500).json({
-      message:
-        "Server error while resending OTP!",
+      message: "Server error while resending OTP!",
     });
   }
 });
 
-
 //3
-app.post("/login", async (req,res)=>{
-  try{
-  
- 
-  //jo frontend se data aya hai email or password usme se email chahiye toh uske lie 
-  // const email=req.body.email;
-  // const password=req.body.password;
-  //short way hai iska 
-  //req.body mai--ek object hai {email:"",password:""}
-  const {email,password}=req.body; 
-  
+app.post("/login", async (req, res) => {
+  try {
+    //jo frontend se data aya hai email or password usme se email chahiye toh uske lie
+    const { email, password } = req.body;
 
-  //idhr error tha
-  const user = await User.findOne({ email: email });
+    const user = await User.findOne({ email: email });
 
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
+    //cehck for password
+    if (user.password != password) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-  if(!user){
-    return res.status(404).json({message:"User not found"});
-  }
+    if (!user.isVerified) {
+      return res.status(403).json({ message: "Please verify your email first!" });
+    }
+    //agr user ki email or pass match hgya mtlb signup succefull tha or isverified true hua toh again login krte tym verify krege
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-
-  //cehck for password
-  if(user.password!=password){
-    return res.status(401).json({message:"Invalid credentials"});
-  }
-
-if(!user.isVerified){
-  return res.status(403).json({message:"Please verify your email first!"});
-}
-//agr user ki email or pass match hgya mtlb signup succefull tha or isverified true hua toh again login krte tym verify krege 
-    const otp = Math.floor(
-      100000 + Math.random() * 900000
-    ).toString();
-
-    const otpExpiry = new Date(
-      Date.now() + 2 * 60 * 1000
-    );
+    const otpExpiry = new Date(Date.now() + 2 * 60 * 1000);
 
     user.OTP = otp;
     user.OTPexpiry = otpExpiry;
 
     await user.save();
 
-    const transporter =
-      nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.email,
-          pass: process.env.pass,
-        },
-      });
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: req.body.email,
       subject: "OTP for Email Verification",
       text: `Your OTP is ${otp}. It is valid for 2 minutes.`,
     });
 
-
-
-  //idhr hmne username send krdia frontend ko us bnde ka jisne login kia hai taki navbar m show kr ske
-  //jb bhi backend se data bhjna ho frontend ko mtlb like message smthng toh message use krege  
- res.json({
-  message:"Login successful",
-  email:user.email,
-  username:user.username
+    //idhr hmne username send krdia frontend ko us bnde ka jisne login kia hai taki navbar m show kr ske
+    res.json({
+      message: "Login successful",
+      email: user.email,
+      username: user.username,
+    });
+  } catch (err) {
+    //agr new ya server error aya toh
+    console.error("Login error:", err);
+    res.status(500).json({ message: err.message });
+  }
 });
-}catch(err){
-  //agr new ya server error aya toh
-  console.error("Login error:", err);
-   res.status(500).json({ message: err.message });
-}
-});
-
-
 
 //4
 app.post("/add-to-cart", async (req, res) => {
   try {
-    const { userEmail, productId, photos,title,price } = req.body;
+    const { userEmail, productId, photos, title, price } = req.body;
 
     const existing = await Cart.findOne({ userEmail, productId });
 
@@ -343,7 +274,6 @@ app.post("/add-to-cart", async (req, res) => {
       if (!existing.title) existing.title = title;
       if (existing.price == null) existing.price = price;
 
-
       await existing.save();
 
       return res.json({
@@ -351,7 +281,6 @@ app.post("/add-to-cart", async (req, res) => {
       });
     }
 
-   
     const newCartitem = new Cart({ userEmail, productId, photos, title, price });
     await newCartitem.save();
 
@@ -366,20 +295,17 @@ app.post("/add-to-cart", async (req, res) => {
   }
 });
 
-
 //5
-app.get("/cart-items/:email", async(req,res)=>{
-  try{
-    const useremail=req.params.email;
-    const Cartitems=await Cart.find({userEmail:useremail});
+app.get("/cart-items/:email", async (req, res) => {
+  try {
+    const useremail = req.params.email;
+    const Cartitems = await Cart.find({ userEmail: useremail });
     res.json(Cartitems);
-  }catch(err){
+  } catch (err) {
     console.error("Server error while fetching cart items:", err);
-    return res.status(500).json({message:"Server error while fetching cart items"});
+    return res.status(500).json({ message: "Server error while fetching cart items" });
   }
-  }
-)
-
+});
 
 //6
 app.delete("/remove-from-cart/:id", async (req, res) => {
@@ -394,39 +320,34 @@ app.delete("/remove-from-cart/:id", async (req, res) => {
   }
 });
 
-
 //7
 app.get("/products", async (req, res) => {
   const products = await Products.find();
   res.json(products);
 });
 
-
 //8
-app.patch("/decrease-quan/:id", async(req,res)=>{
-  try{
-    const item=await Cart.findById(req.params.id);
-    if(!item){
-      return res.status(404).json({message:"gambhir gdbd hai!"});
-
+app.patch("/decrease-quan/:id", async (req, res) => {
+  try {
+    const item = await Cart.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ message: "gambhir gdbd hai!" });
     }
 
-    if(item.quantity>1){
-      item.quantity-=1;
+    if (item.quantity > 1) {
+      item.quantity -= 1;
       await item.save();
-      return res.json({message:"quantity decrease hogai!"});
-    }
-    else{
+      return res.json({ message: "quantity decrease hogai!" });
+    } else {
       //remove krna hai item
       await Cart.findByIdAndDelete(req.params.id);
-      return res.json({message:"quantity 1 thi toh remove krdia item from Cart!"});
+      return res.json({ message: "quantity 1 thi toh remove krdia item from Cart!" });
     }
-  }catch(err){
+  } catch (err) {
     console.error("server error agya hai quantity decrease krte time:", err);
-    return res.status(500).json({message:"Server error while decreasing quantity"});
+    return res.status(500).json({ message: "Server error while decreasing quantity" });
   }
-})
-
+});
 
 app.get("/products/:id", async (req, res) => {
   try {
@@ -448,62 +369,41 @@ app.get("/products/:id", async (req, res) => {
   }
 });
 
-
 app.get("/sellers/:id", async (req, res) => {
-  try{
-  //database se seller ka data chahiye 
-  //colection mai id se us product /mtlb seller ko dhundo
-  //url se id fech krne k lie ---req url hai
-  const product=await Products.findById(req.params.id);
+  try {
+    //database se seller ka data chahiye
+    //colection mai id se us product /mtlb seller ko dhundo
+    //url se id fech krne k lie ---req url hai
+    const product = await Products.findById(req.params.id);
 
-  if(!product){
-    //agr koi product uis id se exist nhi krta toh null dega or agr null/undefined/empty hai toh return krege error --neche wala ru nhi hga
-    return res.status(404).json({message:"Seller not found"});
-  }
+    if (!product) {
+      //agr koi product uis id se exist nhi krta toh null dega or agr null/undefined/empty hai toh return krege error --neche wala ru nhi hga
+      return res.status(404).json({ message: "Seller not found" });
+    }
 
-  //agr product mil gya pr seller details fill nhi ki ya seller field hi exist na krti ho toh 
-  if (!product.seller || !product.seller.name) {
+    //agr product mil gya pr seller details fill nhi ki ya seller field hi exist na krti ho toh
+    if (!product.seller || !product.seller.name) {
       return res.status(404).json({ message: "Seller details not added yet" });
     }
 
-  
-    //agr product or seller dono mil hgya toh 
+    //agr product or seller dono mil hgya toh
     return res.json(product.seller);
-     }catch(error)
-    {
-      //y catch jb run krega jb ya toh try ho,,ya throw use kia ho --ya server error ho ,internet error 
-      console.log(error);
-      return res.status(500).json({message:"Server error"});
-  }})
-
-/////errorrrrr--db m update nhi hrha 
-// app.put("/products/:id",async(req,res)=>{
-    
-
-//   const updated=await Products.findByIdAndUpdate(
-//     req.params.id,
-    
-//      { $set: req.body },
-//     {new:true}   //updated data vapis do
-    
-//   );
-//   console.log(updated);
-//   res.json(updated);
-
-// });
-
+  } catch (error) {
+    //y catch jb run krega jb ya toh try ho,,ya throw use kia ho --ya server error ho ,internet error
+    console.log(error);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
 app.post("/save-search", async (req, res) => {
-
   try {
-
     const { email, searchText } = req.body;
 
     const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({
-        message: "User not found"
+        message: "User not found",
       });
     }
 
@@ -516,50 +416,39 @@ app.post("/save-search", async (req, res) => {
     await user.save();
 
     res.json({
-      message: "Search saved"
+      message: "Search saved",
     });
-
   } catch (err) {
-
     res.status(500).json({
-      message: "Server Error"
+      message: "Server Error",
     });
-
   }
-
 });
-
-
-
 
 app.get("/gemini-test", async (req, res) => {
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash"
+      model: "gemini-2.5-flash",
     });
 
     const result = await model.generateContent("Hello");
 
     res.json({
-      reply: result.response.text()
+      reply: result.response.text(),
     });
-
   } catch (err) {
     console.error(err);
     res.json({
-      error: err.message
+      error: err.message,
     });
   }
 });
 
-
-
 //to delete existing data
-app.delete("/products/:id",async(req,res)=>{
+app.delete("/products/:id", async (req, res) => {
   await Products.findByIdAndDelete(req.params.id);
-  res.json({message:"Product deleted successfully!"});
+  res.json({ message: "Product deleted successfully!" });
 });
-
 
 // server start---deploy krne ke lie
 const PORT = process.env.PORT || 5000;
@@ -567,12 +456,11 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-
 app.post("/generate-description", async (req, res) => {
   try {
     const { title, category, condition, location, quantity, photoBase64 } = req.body;
 
-   const basePrompt = `
+    const basePrompt = `
 Write a professional marketplace product description.
 
 Product Details:
@@ -636,7 +524,7 @@ Now write the description following the format above EXACTLY:`;
     const result = await model.generateContent({
       contents: [{ role: "user", parts: promptParts }],
       generationConfig: {
-        temperature: 0.4,   // 👈 kam creativity, zyada instruction-following
+        temperature: 0.4, // 👈 kam creativity, zyada instruction-following
       },
     });
 
@@ -646,6 +534,7 @@ Now write the description following the format above EXACTLY:`;
     res.status(500).json({ message: err.message });
   }
 });
+
 app.post("/predict-price", async (req, res) => {
   try {
     const { title, category, condition, quantity, photoBase64 } = req.body;
@@ -716,12 +605,12 @@ Respond ONLY in this JSON format, nothing else, no extra text:
       books: 1000,
       electronics: 5000,
       furniture: 5000,
-      clothes: 2000,      // 👈 NEW — clothes ka cap
-      footwear: 1200,     // 👈 NEW — agar footwear alag category hai toh
+      clothes: 2000, // 👈 NEW — clothes ka cap
+      footwear: 1200, // 👈 NEW — agar footwear alag category hai toh
       default: 3000,
     };
     const baseCap = MAX_REASONABLE_PRICE[category?.toLowerCase()] || MAX_REASONABLE_PRICE.default;
-    const cap = baseCap * Math.max(quantity, 1);   // quantity ke hisaab se cap badhao
+    const cap = baseCap * Math.max(quantity, 1); // quantity ke hisaab se cap badhao
 
     if (priceData.suggestedPrice > cap) {
       priceData.suggestedPrice = cap;
@@ -730,88 +619,11 @@ Respond ONLY in this JSON format, nothing else, no extra text:
     }
 
     res.json(priceData);
-
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: err.message });
   }
 });
-
-
-// app.get("/recommendations/:email", async (req, res) => {
-//   try {
-//     const user = await User.findOne({ email: req.params.email });
-
-//     if (!user) {
-//       return res.json([]);
-//     }
-
-//     const products = await Products.find().limit(50);
-
-//     if (products.length === 0) {
-//       return res.json([]);
-//     }
-
-//     // Agar user ki search history empty hai, AI ko call karne ka koi fayda nahi
-//     if (!user.searchHistory || user.searchHistory.length === 0) {
-//       return res.json([]);
-//     }
-
-//     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-//     // Sirf product IDs + minimal info bhejo AI ko, taki woh sirf relevant IDs chune
-//     const productSummaries = products.map(p => ({
-//       id: p._id.toString(),
-//       title: p.title,
-//       category: p.category,
-//       price: p.price,
-//     }));
-
-//     const prompt = `You are a recommendation system for a student marketplace.
-
-// User search history:
-// ${JSON.stringify(user.searchHistory)}
-
-// Available products:
-// ${JSON.stringify(productSummaries)}
-
-// Pick the 6 most relevant product IDs based on the user's search history.
-// If nothing is relevant, return an empty array.
-
-// Respond ONLY in this JSON format, nothing else, no extra text:
-// {
-//   "productIds": ["id1", "id2", "id3"]
-// }`;
-
-//     const result = await model.generateContent({
-//       contents: [{ role: "user", parts: [{ text: prompt }] }],
-//       generationConfig: {
-//         temperature: 0.3,
-//         responseMimeType: "application/json",
-//       },
-//     });
-
-//     let productIds = [];
-//     try {
-//       const parsed = JSON.parse(result.response.text());
-//       productIds = Array.isArray(parsed.productIds) ? parsed.productIds : [];
-//     } catch (parseErr) {
-//       console.log("Recommendation JSON parse error:", parseErr);
-//       return res.json([]);
-//     }
-
-//     // Asli product documents fetch karo un IDs ke liye, original order preserve karke
-//     const recommendedProducts = productIds
-//       .map(id => products.find(p => p._id.toString() === id))
-//       .filter(Boolean);
-
-//     res.json(recommendedProducts);
-//   } catch (err) {
-//     console.log(err);
-//     res.status(500).json({ message: "Recommendation error" });
-//   }
-// });
-
 
 app.get("/recommendations/:email", async (req, res) => {
   try {
@@ -829,8 +641,7 @@ app.get("/recommendations/:email", async (req, res) => {
       return user.searchHistory.some((search) => {
         const word = search.toLowerCase();
         return (
-          p.title.toLowerCase().includes(word) ||
-          p.category.toLowerCase().includes(word)
+          p.title.toLowerCase().includes(word) || p.category.toLowerCase().includes(word)
         );
       });
     });
@@ -841,8 +652,6 @@ app.get("/recommendations/:email", async (req, res) => {
     res.json([]); // error ho to khaali list, page nahi todna
   }
 });
-
-
 
 //img analysis
 app.post("/analyze-image", async (req, res) => {
@@ -855,8 +664,14 @@ app.post("/analyze-image", async (req, res) => {
 
     // ✅ tere allowed categories — Browse filter ke same rakhe hain
     const allowedCategories = [
-      "Books", "Electronics", "Stationery", "Notes",
-      "Sports", "Furniture", "Accessories", "Clothes"
+      "Books",
+      "Electronics",
+      "Stationery",
+      "Notes",
+      "Sports",
+      "Furniture",
+      "Accessories",
+      "Clothes",
     ];
 
     const prompt = `You are analyzing a product photo for a student marketplace listing.
@@ -916,10 +731,10 @@ Respond ONLY in this JSON format, nothing else, no extra text:
   }
 });
 
-
-app.get("/Sellerproducts/:email", async (req, res) => { // ✅ fixed: route param ":email" + removed extra "("
+app.get("/Sellerproducts/:email", async (req, res) => {
+  // ✅ fixed: route param ":email" + removed extra "("
   try {
-    console.log("printing",req.params.email);
+    console.log("printing", req.params.email);
     const products = await Products.find({ "seller.email": req.params.email });
     console.log(products.length);
 
@@ -929,47 +744,50 @@ app.get("/Sellerproducts/:email", async (req, res) => { // ✅ fixed: route para
     }
 
     return res.json(products);
-  } catch (error) { // ✅ fixed: error use kiya, err nahi
+  } catch (error) {
+    // ✅ fixed: error use kiya, err nahi
     return res.status(500).json({ message: error.message });
   }
 });
 
-
-
-
-
 // ============================================================
-// ORDER ROUTES — paste these in server.js
-// File ke TOP mein add kar:
-// const Order = require("./models/Order");
+// ORDER ROUTES
 // ============================================================
 
 // ✅ 1. Buyer places order (Buy Now form submit)
 app.post("/create-order", async (req, res) => {
   try {
     const {
-      productId, productTitle, productPhoto, productPrice,
-      buyerName, buyerEmail, buyerPhone, buyerAddress,
-      sellerEmail, sellerName,
+      productId,
+      productTitle,
+      productPhoto,
+      productPrice,
+      buyerName,
+      buyerEmail,
+      buyerPhone,
+      buyerAddress,
+      sellerEmail,
+      sellerName,
     } = req.body;
 
     const order = new Order({
-      productId, productTitle, productPhoto, productPrice,
-      buyerName, buyerEmail, buyerPhone, buyerAddress,
-      sellerEmail, sellerName,
+      productId,
+      productTitle,
+      productPhoto,
+      productPrice,
+      buyerName,
+      buyerEmail,
+      buyerPhone,
+      buyerAddress,
+      sellerEmail,
+      sellerName,
       status: "pending",
     });
 
     await order.save();
 
     // Email to seller — new order notification
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.email, pass: process.env.pass },
-    });
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: sellerEmail,
       subject: `New Order Received — ${productTitle}`,
       html: `
@@ -994,7 +812,6 @@ app.post("/create-order", async (req, res) => {
   }
 });
 
-
 // ✅ 2. All orders for a seller (pending + active)
 app.get("/seller-orders/:email", async (req, res) => {
   try {
@@ -1004,7 +821,6 @@ app.get("/seller-orders/:email", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-
 
 // ✅ 3. All orders for a buyer (track order page)
 app.get("/buyer-orders/:email", async (req, res) => {
@@ -1016,14 +832,18 @@ app.get("/buyer-orders/:email", async (req, res) => {
   }
 });
 
-
 // ✅ 4. Seller — Accept order + set delivery charge
 //      Buyer receives an email to confirm the total amount on the Track Order page
 app.patch("/order-accept/:id", async (req, res) => {
   try {
     const { deliveryCharge } = req.body;
 
-    if (deliveryCharge === undefined || deliveryCharge === null || deliveryCharge < 0 || isNaN(Number(deliveryCharge))) {
+    if (
+      deliveryCharge === undefined ||
+      deliveryCharge === null ||
+      deliveryCharge < 0 ||
+      isNaN(Number(deliveryCharge))
+    ) {
       return res.status(400).json({ message: "Please enter a valid delivery charge!" });
     }
 
@@ -1031,8 +851,14 @@ app.patch("/order-accept/:id", async (req, res) => {
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     if (typeof order.productPrice !== "number" || isNaN(order.productPrice)) {
-      console.error("⚠️ order-accept: productPrice invalid for order", order._id, order.productPrice);
-      return res.status(400).json({ message: "This order's product price is missing or invalid. It may be an old/corrupt order." });
+      console.error(
+        "⚠️ order-accept: productPrice invalid for order",
+        order._id,
+        order.productPrice
+      );
+      return res.status(400).json({
+        message: "This order's product price is missing or invalid. It may be an old/corrupt order.",
+      });
     }
 
     order.status = "accepted";
@@ -1040,16 +866,14 @@ app.patch("/order-accept/:id", async (req, res) => {
     order.totalAmount = order.productPrice + Number(deliveryCharge);
     await order.save();
 
-    console.log("✅ order-accept:", { productPrice: order.productPrice, deliveryCharge: order.deliveryCharge, totalAmount: order.totalAmount });
-
-    // Email to buyer — order accepted + delivery charge + total
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.email, pass: process.env.pass },
+    console.log("✅ order-accept:", {
+      productPrice: order.productPrice,
+      deliveryCharge: order.deliveryCharge,
+      totalAmount: order.totalAmount,
     });
 
-    await transporter.sendMail({
-      from: process.env.email,
+    // Email to buyer — order accepted + delivery charge + total
+    await sendEmail({
       to: order.buyerEmail,
       subject: `Order Accepted — ${order.productTitle}`,
       html: `
@@ -1069,7 +893,6 @@ app.patch("/order-accept/:id", async (req, res) => {
   }
 });
 
-
 // ✅ 5. Seller — Reject order
 app.patch("/order-reject/:id", async (req, res) => {
   try {
@@ -1082,13 +905,7 @@ app.patch("/order-reject/:id", async (req, res) => {
     );
 
     // Email to buyer — order rejected
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.email, pass: process.env.pass },
-    });
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: order.buyerEmail,
       subject: `Order Rejected — ${order.productTitle}`,
       html: `
@@ -1105,7 +922,6 @@ app.patch("/order-reject/:id", async (req, res) => {
   }
 });
 
-
 // ✅ 6. Buyer — Confirm total amount (accept delivery charge) → status: packed, email to seller
 app.patch("/order-confirm/:id", async (req, res) => {
   try {
@@ -1116,13 +932,7 @@ app.patch("/order-confirm/:id", async (req, res) => {
     );
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.email, pass: process.env.pass },
-    });
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: order.sellerEmail,
       subject: `Buyer Confirmed Order — ${order.productTitle}`,
       html: `
@@ -1139,7 +949,6 @@ app.patch("/order-confirm/:id", async (req, res) => {
   }
 });
 
-
 // ✅ 7. Buyer — Reject total amount → order cancelled, email to seller
 app.patch("/order-cancel/:id", async (req, res) => {
   try {
@@ -1150,13 +959,7 @@ app.patch("/order-cancel/:id", async (req, res) => {
     );
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.email, pass: process.env.pass },
-    });
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: order.sellerEmail,
       subject: `Order Cancelled by Buyer — ${order.productTitle}`,
       html: `
@@ -1173,19 +976,15 @@ app.patch("/order-cancel/:id", async (req, res) => {
   }
 });
 
-
 // ✅ 8. Seller — Mark as Packed (no-op kept for compatibility, packed is already set by buyer confirm)
 app.patch("/order-pack/:id", async (req, res) => {
   try {
-    const order = await Order.findByIdAndUpdate(
-      req.params.id, { status: "packed" }, { new: true }
-    );
+    const order = await Order.findByIdAndUpdate(req.params.id, { status: "packed" }, { new: true });
     res.json({ success: true, order });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
-
 
 // ✅ 9. Seller — Dispatch order (courier, tracking ID, estimated delivery, own Paytm number)
 //      OTP is generated HERE and emailed to the buyer right away.
@@ -1202,7 +1001,7 @@ app.patch("/order-dispatch/:id", async (req, res) => {
     // 6-digit OTP generated at dispatch time and saved to the order right away
     const deliveryOTP = Math.floor(100000 + Math.random() * 900000).toString();
     const deliveryOTPExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // valid for 7 days
-     console.log("3");
+    console.log("3");
 
     const order = await Order.findByIdAndUpdate(
       req.params.id,
@@ -1217,16 +1016,9 @@ app.patch("/order-dispatch/:id", async (req, res) => {
       },
       { new: true }
     );
-     console.log("4");
+    console.log("4");
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.email, pass: process.env.pass },
-    });
-     console.log("5");
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: order.buyerEmail,
       subject: `Your Order is Dispatched — ${order.productTitle}`,
       html: `
@@ -1245,20 +1037,17 @@ app.patch("/order-dispatch/:id", async (req, res) => {
         <p>You will need to enter this OTP to confirm delivery, <b>after</b> the seller confirms your payment. Keep it safe — do not share it with anyone else.</p>
       `,
     });
-    
+
     console.log("mail gai disaptch");
     res.json({ success: true, order });
   } catch (err) {
-   
-  console.error("Dispatch Error:", err);
-  res.status(500).json({
-    success: false,
-    message: err.message,
-  });
-
+    console.error("Dispatch Error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 });
-
 
 // ✅ 10. Buyer — "I Have Paid" — payment claim, email to seller for confirmation
 app.patch("/order-payment-claim/:id", async (req, res) => {
@@ -1270,13 +1059,7 @@ app.patch("/order-payment-claim/:id", async (req, res) => {
     );
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.email, pass: process.env.pass },
-    });
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: order.sellerEmail,
       subject: `Buyer Claims Payment Done — ${order.productTitle}`,
       html: `
@@ -1293,7 +1076,6 @@ app.patch("/order-payment-claim/:id", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-
 
 // ✅ 11. Seller — Confirm payment received → unlocks OTP verification for the buyer
 //       (OTP itself was already generated and emailed at dispatch time — route 9)
@@ -1315,7 +1097,6 @@ app.patch("/order-payment-confirm/:id", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-
 
 // ✅ 12. Buyer — Verify OTP (the one emailed at dispatch time) → Mark as Delivered
 app.patch("/order-verify-otp/:id", async (req, res) => {
@@ -1341,13 +1122,7 @@ app.patch("/order-verify-otp/:id", async (req, res) => {
     await order.save();
 
     // Email to seller — delivered confirmation
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.email, pass: process.env.pass },
-    });
-
-    await transporter.sendMail({
-      from: process.env.email,
+    await sendEmail({
       to: order.sellerEmail,
       subject: `Order Delivered — ${order.productTitle}`,
       html: `
@@ -1364,5 +1139,3 @@ app.patch("/order-verify-otp/:id", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-
-
