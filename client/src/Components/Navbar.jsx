@@ -7,11 +7,16 @@ const Navbar = () => {
   const [username, setUsername] = useState(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
+const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const checkUser = () => {
+
+      const loggedIn = localStorage.getItem("isLoggedIn");
+      console.log(loggedIn);
+      setIsLoggedIn(loggedIn);
       const storedUser = localStorage.getItem("username");
-      setUsername(storedUser);
+      setUsername(loggedIn ? storedUser : null);
     };
     checkUser();
     window.addEventListener("storage", checkUser);
@@ -30,6 +35,7 @@ const Navbar = () => {
 
   function handleLogout() {
     localStorage.removeItem("userEmail");
+     localStorage.removeItem("isLoggedIn");
     localStorage.removeItem("username");
     localStorage.removeItem("email");
     setUsername(null);
@@ -62,7 +68,7 @@ const Navbar = () => {
       </ul>
 
       <div className="flex gap-4 w-[35%] items-center">
-        {username ? (
+        {username && isLoggedIn ? (
           <div className="relative w-full" ref={dropdownRef}>
             <button
               onClick={() => setShowDropdown(!showDropdown)}
