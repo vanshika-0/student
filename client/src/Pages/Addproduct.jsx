@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../Components/Navbar";
 import { useState, useEffect } from "react";
+import { API_URL } from "../config";
 
 const Addproduct = () => {
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ const Addproduct = () => {
 
       const photoBase64 = await toBase64(file);
 
-      const response = await fetch("http://localhost:5000/analyze-image", {
+      const response = await fetch(`${API_URL}/analyze-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photoBase64 }),
@@ -105,7 +106,7 @@ const Addproduct = () => {
     });
 
     try {
-      const response = await fetch("http://localhost:5000/add-product", {
+      const response = await fetch(`${API_URL}/add-product`, {
         method: "POST",
         body: formData,
       });
@@ -131,8 +132,7 @@ const Addproduct = () => {
         photoBase64 = await toBase64(product.photos[0]);
       }
 
-      const response = await fetch(
-        "http://localhost:5000/generate-description",
+      const response = await fetch(`${API_URL}/generate-description`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -181,7 +181,7 @@ const Addproduct = () => {
         photoBase64 = await toBase64(product.photos[0]);
       }
 
-      const response = await fetch("http://localhost:5000/predict-price", {
+      const response = await fetch(`${API_URL}/predict-price`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
