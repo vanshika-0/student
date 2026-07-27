@@ -34,9 +34,9 @@ const Login = () => {
       navigate("/Otpverify", { state: { email: data.email } });
       // setLogin(true);
 
-      localStorage.setItem("username", data.username);
-      console.log(data.username);
-      localStorage.setItem("userEmail", user.email);
+      // localStorage.setItem("username", data.username);
+      // console.log(data.username);
+      // localStorage.setItem("userEmail", user.email);
 
     
     } catch (error) {
