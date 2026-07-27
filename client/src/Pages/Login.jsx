@@ -2,6 +2,7 @@ import React from "react";
 import { useState } from "react";
 import Navbar from "../Components/Navbar";
 import { useNavigate } from "react-router-dom";
+import { API_URL } from "../config";
 
 //login hne ke bdd verify hga email jaegi
 const Login = () => {
@@ -17,7 +18,7 @@ const Login = () => {
     e.preventDefault();
 
     try {
-      const response = await fetch("http://localhost:5000/login", {
+      const response = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: {
           "Content-type": "application/json",

@@ -2,6 +2,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../Components/Navbar";
+import { API_URL } from "../config";
 
 
 //jo seller ne product bechne ke lie rkhe hue h or unpe order agya toh vo order wale idhr show hnge 
@@ -17,8 +18,7 @@ const Sellerproducts = () => {
         return;
       }
 
-      const response = await fetch(
-        `http://localhost:5000/Sellerproducts/${email}`, // ✅ space hata kar "/" lagaya
+      const response = await fetch(`${API_URL}/Sellerproducts/${email}`, // ✅ space hata kar "/" lagaya
       );
 
 
@@ -52,7 +52,7 @@ if (response.status === 404) {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/add-to-cart", {
+      const response = await fetch(`${API_URL}/add-to-cart`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -89,7 +89,7 @@ if (response.status === 404) {
             className="bg-white p-3 rounded-xl shadow hover:shadow-lg transition"
           >
             <img
-              src={`http://localhost:5000/uploads/${item.photos?.[0]}`} // ✅ optional chaining
+              src={`${API_URL}/uploads/${item.photos?.[0]}`} // ✅ optional chaining
               alt={item.title}
               className="w-full h-48 object-contain rounded-lg"
             />

@@ -1,6 +1,6 @@
 // Force Google DNS
-const dns = require('dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// const dns = require('dns');
+// dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 require("dotenv").config();
 // ... baaki code same

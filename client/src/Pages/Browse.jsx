@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Navbar from "../Components/Navbar";
 import { Link } from "react-router-dom";
+import { API_URL } from "../config";
 
 const Browse = () => {
   const [products, setProducts] = useState([]);
@@ -12,7 +13,7 @@ const Browse = () => {
   // const [recommendations, setRecommendations] = useState([]); // ✅ array
 
   useEffect(() => {
-    fetch("http://localhost:5000/products")
+    fetch(`${API_URL}/products`)
       .then((res) => res.json())
       .then((data) => setProducts(data))
       .catch((err) => console.error("Error fetching products:", err)); // ✅
@@ -24,7 +25,7 @@ const Browse = () => {
     if (photo.startsWith("http://") || photo.startsWith("https://")) {
       return photo; // already full URL (e.g. picsum links)
     }
-    return `http://localhost:5000/uploads/${photo}`; // local uploaded file
+    return `${API_URL}/uploads/${photo}`; // local uploaded file
   };
 
   // 🔥 FILTER LOGIC (search + price + category)
@@ -73,7 +74,7 @@ const Browse = () => {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/add-to-cart", {
+      const response = await fetch(`${API_URL}/add-to-cart`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -114,7 +115,7 @@ const Browse = () => {
         debounceValue.length >= 3
       ) {
         try {
-          await fetch("http://localhost:5000/save-search", {
+          await fetch(`${API_URL}/save-search`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Navbar from "../Components/Navbar";
+import { API_URL } from "../config";
 
 const OtpVerify = () => {
 
@@ -70,8 +71,7 @@ const OtpVerify = () => {
 
     try{
 
-      const response = await fetch(
-        "http://localhost:5000/verify-otp",
+      const response = await  fetch(`${API_URL}/verify-otp`,
         {
           method:"POST",
           headers:{
@@ -128,8 +128,7 @@ localStorage.setItem("isLoggedIn", "true");
 
     try{
 
-      const response = await fetch(
-        "http://localhost:5000/resend-otp",
+      const response = await fetch(`${API_URL}/resend-otp`,
         {
           method:"POST",
           headers:{

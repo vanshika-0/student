@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Navbar from "../Components/Navbar";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
+import { API_URL } from "../config";
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
@@ -31,8 +32,7 @@ const Cart = () => {
 
     const fetchCart = async () => {
       try {
-        const response = await fetch(
-          `http://localhost:5000/cart-items/${userEmail}`,
+        const response = await fetch(`${API_URL}/cart-items/${userEmail}`,
         );
 
         const data = await response.json();
@@ -57,8 +57,7 @@ const Cart = () => {
   // Delete item
   async function handleRemove(productId) {
     try {
-      const response = await fetch(
-        `http://localhost:5000/remove-from-cart/${productId}`,
+      const response = await fetch(`${API_URL}/remove-from-cart/${productId}`,
         { method: "DELETE" },
       );
       if (!response.ok) {
@@ -77,8 +76,7 @@ const Cart = () => {
   // Decrease quantity
   async function handleDecrease(productId) {
     try {
-      const response = await fetch(
-        `http://localhost:5000/decrease-quan/${productId}`,
+      const response = await fetch(`${API_URL}/decrease-quan/${productId}`,
         { method: "PATCH" },
       );
       if (!response.ok) {
@@ -114,7 +112,7 @@ const Cart = () => {
             >
               {item.photos?.[0] && (
                 <img
-                  src={`http://localhost:5000/uploads/${item.photos[0]}`}
+                  src={`${API_URL}/uploads/${item.photos[0]}`}
                   alt={item.title}
                   className="w-full h-48 object-cover rounded-lg"
                 />
