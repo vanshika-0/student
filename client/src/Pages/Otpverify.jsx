@@ -100,6 +100,10 @@ const OtpVerify = () => {
       alert("OTP Verified Successfully!");
 
       localStorage.removeItem("otpTime");
+      console.log("data.username",data.username);
+      localStorage.setItem("username", data.username);
+localStorage.setItem("userEmail", data.email);
+localStorage.setItem("isLoggedIn", "true");
 
       navigate("/")
 
